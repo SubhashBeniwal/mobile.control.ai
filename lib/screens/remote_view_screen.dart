@@ -242,6 +242,10 @@ class _RemoteViewScreenState extends State<RemoteViewScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      // Size to the content (up to full height) instead of the default 9/16
+      // cap, which cut off the last rows.
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: const Color(0xFF16181F),
       builder: (_) => _GestureHelp(trackpad: _app.remoteTrackpad, display: _target.isDisplay),
     );
@@ -561,7 +565,7 @@ class _GestureHelp extends StatelessWidget {
       ('4 fingers ← / →', 'Switch Spaces'),
     ];
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,

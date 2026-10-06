@@ -155,6 +155,38 @@ void main() {
         expect(swipe.direction, SwipeDirection.up);
       }));
 
+  test('staggered three-finger swipe sends no drag, scroll or pinch first', () => _run((h) {
+        // Fingers land 20 ms apart while the hand is already moving.
+        final pts = {1: const Offset(200, 300), 2: const Offset(240, 310), 3: const Offset(280, 300)};
+        final cur = <int, Offset>{};
+        for (final id in pts.keys) {
+          h.down(id, pts[id]!.dx, pts[id]!.dy);
+          cur[id] = pts[id]!;
+          h.wait(10);
+          cur.updateAll((id, p) => p + const Offset(-8, 0));
+          cur.forEach((id, p) => h.move(id, p.dx, p.dy));
+          h.wait(10);
+          cur.updateAll((id, p) => p + const Offset(-8, 0));
+          cur.forEach((id, p) => h.move(id, p.dx, p.dy));
+        }
+        h.moveAll(cur, -120, 0);
+        cur.forEach((id, p) => h.up(id, p.dx - 120, p.dy));
+        expect(h.events.whereType<SwipeGesture>().single.fingers, 3);
+        expect(h.types, isNot(contains(DragStartGesture)));
+        expect(h.types, isNot(contains(PanGesture)));
+        expect(h.types, isNot(contains(PinchGesture)));
+      }));
+
+  test('a quick one-finger flick is still a drag, not a tap', () => _run((h) {
+        h.down(1, 100, 100);
+        h.wait(10);
+        h.move(1, 130, 100);
+        h.wait(10);
+        h.up(1, 160, 100);
+        expect(h.types, [DragStartGesture, DragUpdateGesture, DragEndGesture, GestureEndGesture]);
+        expect((h.events[2] as DragEndGesture).position, const Offset(160, 100));
+      }));
+
   test('a short three-finger wiggle is not a swipe', () => _run((h) {
         final pts = {1: const Offset(0, 0), 2: const Offset(40, 0), 3: const Offset(80, 0)};
         pts.forEach((id, p) => h.down(id, p.dx, p.dy));

@@ -96,6 +96,7 @@ class TouchInterpreter {
     this.doubleTapSlop = 40,
     this.swipeDistance = 60,
     this.pinchThreshold = 0.10,
+    this.settle = const Duration(milliseconds: 50),
   });
 
   final void Function(TouchGesture) onGesture;
@@ -113,10 +114,16 @@ class TouchInterpreter {
   /// Relative change in finger spread that makes a two-finger gesture a pinch.
   final double pinchThreshold;
 
+  /// How long after a finger lands to wait before committing to a one-finger
+  /// drag or two-finger scroll/pinch, so the fingers of a three- or
+  /// four-finger swipe, which land a few ms apart, don't trigger them first.
+  final Duration settle;
+
   final Map<int, Offset> _points = {};
   _Phase _phase = _Phase.idle;
   int _maxFingers = 0;
   Duration _downAt = Duration.zero;
+  Duration _lastDownAt = Duration.zero;
   Offset _firstDown = Offset.zero;
   bool _moved = false;
 
@@ -174,6 +181,7 @@ class TouchInterpreter {
       _holdTimer = Timer(longPress, _onHold);
     }
     _points[pointer] = position;
+    _lastDownAt = time;
     if (_points.length > _maxFingers) _maxFingers = _points.length;
 
     if (_points.length > 1) {
@@ -221,6 +229,7 @@ class TouchInterpreter {
         }
         _moved = true;
         _holdTimer?.cancel();
+        if (_points.length < 3 && time - _lastDownAt < settle) break;
         if (_points.length == 1) {
           _phase = _Phase.drag;
           onGesture(DragStartGesture(focal - _travel, held: false));
@@ -285,7 +294,14 @@ class TouchInterpreter {
     _holdTimer?.cancel();
     switch (_phase) {
       case _Phase.pending:
-        if (!_moved && time - _downAt <= tapTimeout) _emitTap(time);
+        if (!_moved && time - _downAt <= tapTimeout) {
+          _emitTap(time);
+        } else if (_moved && _maxFingers == 1) {
+          // A flick that ended while settling: still deliver it as a drag.
+          onGesture(DragStartGesture(_firstDown, held: false));
+          onGesture(DragUpdateGesture(lastFocal, lastFocal - _firstDown, held: false));
+          onGesture(DragEndGesture(lastFocal, held: false));
+        }
       case _Phase.held:
         onGesture(LongPressUpGesture(_holdAt));
       case _Phase.drag:
